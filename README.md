@@ -3,8 +3,8 @@
 
 Usage:
 ```shell
-./ansible-vault-util.py --help
-usage: ansible-vault-util [-h] [-o OUTPUT] [-m MODE] filename
+❯ ./ansible-vault-util.py test-file.vault.yaml -h
+usage: ansible-vault-util [-h] [-o OUTPUT] [-m {clear,mixed,vault}] [-u U] [-y] [-e] filename
 
 Ansible Vault Utility
 
@@ -13,20 +13,26 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o OUTPUT, --output OUTPUT
-  -m MODE, --mode MODE
+  -o OUTPUT             output file (default: None)
+  -m {clear,mixed,vault}
+                        output mode
+  -u U                  in-place vault edit: -u foo.bar "something here"
+  -y                    print yaml when clear mode is used
+  -e                    open decrypted in default $EDITOR
 ```
 
+`-m` can be used when printing to stdout or when editing file using editor
+`-y` can be combined with clear mode to dump to yaml instead of json
+
 Supported output modes:
-- clear - plain text output
-- mixed - mixed plain keys and ecnrypted values
+- clear - plain text output (default)
+- mixed - mixed plain keys and encrypted values
 - vault - full file encryption
 
 ### Examples
 
 Printing fully encrypted file
 ```shell
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11
 ❯ cat test-file.vault.yaml
 $ANSIBLE_VAULT;1.1;AES256
 63613666353761646237626562323332336630346630326562356430626630663138333662626638
@@ -36,7 +42,6 @@ $ANSIBLE_VAULT;1.1;AES256
 66306531363862323930646536653936343565636630306566386636613631373965666233356331
 6236653964623532366365373562376661386436643738306235                                                                                                                                                        /0.0s
 
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11
 ❯ ./ansible-vault-util.py test-file.vault.yaml
 Enter vault password:
 {'foo': 'bar', 'bam': 'bap', 'baz': {'wep': 'test'}}
@@ -44,12 +49,10 @@ Enter vault password:
 
 Converting fully encrypted file to mixed
 ```shell
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11 took 2s
 ❯ ./ansible-vault-util.py test-file.vault.yaml -o test-file.mixed.yaml -m mixed
 Enter vault password:
 writing mixed vault/text to file test-file.mixed.yaml                                                                                                                                                       /2.1s
 
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11 took 2s
 ❯ cat test-file.mixed.yaml
 bam: !vault |
   $ANSIBLE_VAULT;1.1;AES256
@@ -76,7 +79,6 @@ foo: !vault |
 
 Printing mixed content file:
 ```shell
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11
 ❯ ./ansible-vault-util.py test-file.mixed.yaml
 Enter vault password:
 {'bam': 'bap', 'baz': {'wep': 'test'}, 'foo': 'bar'}
@@ -84,15 +86,96 @@ Enter vault password:
 
 Converting mixed content file to clear text:
 ```shell
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11
 ❯ ./ansible-vault-util.py test-file.mixed.yaml -o test-file.clear.yaml -m clear
 Enter vault password:
 writing clear text to file test-file.clear.yaml                                                                                                                                                             /1.5s
 
-x in 🌐 maze1 in ansible-vault on  main [!] via 🐍 v3.10.11
 ❯ cat test-file.clear.yaml
 bam: bap
 baz:
   wep: test
 foo: bar
+```
+
+Print to stdout changing input to desired mode
+```shell
+❯ cat test-file.vault.yaml
+$ANSIBLE_VAULT;1.1;AES256
+63613666353761646237626562323332336630346630326562356430626630663138333662626638
+3436366235323235633263396362336139646434656664390a636434363932626237303337323463
+62393237393136643235363762386466323963323438633339363166643639363338613437376462
+6635386438333463610a386438656362333037633063363034393136306261656631653133343039
+66306531363862323930646536653936343565636630306566386636613631373965666233356331
+6236653964623532366365373562376661386436643738306235
+
+❯ ./ansible-vault-util.py test-file.vault.yaml -m mixed
+Enter vault password:
+bam: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  34613430383463346136366130356235343633663439663566303239393330393766396364626363
+  3635646532323130663933393631666333346363366433330a623831326336646432346662623739
+  34343836343336666233613036366431623839646663653832613832373738663163323635393664
+  3265653137636336390a363162613163623262306131613763373063356134613434363231363135
+  3931
+baz:
+  wep: !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    66366566396563386365386363333033376361646161616535393362346333323439326634383831
+    6335313062643361373235383330386564346334396534320a333133646238646238623565613433
+    35643138326366356236626365666231376665356235316230333865303663353038636264623566
+    3539316633643761330a333937343535333062663935356131333332323935316434346438656539
+    6466
+foo: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  62643332356462386632623463326637336630323236386565353433666661376139613735653165
+  3937653834313565623933643235393233396331666431640a373731663163656364643230303263
+  34303963636338376265366633336635633934386366666432616464376132393265353763633033
+  3033343535353031340a396335626666616436306230613931663964383436313862306338323939
+  6430
+```
+
+Modifying encrypted vault file using $EDITOR and changing target mode at the same time
+```shell
+❯ cat test-file.vault.yaml
+$ANSIBLE_VAULT;1.1;AES256
+63613666353761646237626562323332336630346630326562356430626630663138333662626638
+3436366235323235633263396362336139646434656664390a636434363932626237303337323463
+62393237393136643235363762386466323963323438633339363166643639363338613437376462
+6635386438333463610a386438656362333037633063363034393136306261656631653133343039
+66306531363862323930646536653936343565636630306566386636613631373965666233356331
+6236653964623532366365373562376661386436643738306235
+
+❯ ./ansible-vault-util.py test-file.vault.yaml -e -m mixed
+Enter vault password:                                                                                                                                                                                      /19.5s
+
+❯ cat test-file.vault.yaml
+bam: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  62323837303735396535646663613265653365373237613238353862303832346262666164316461
+  3362646363306363396535313938646531336435323064330a613137653631613734393564326235
+  39653766336235376433353462656461383730636431396532376235613038333135373538306265
+  6632323835643634640a623835376630326361363166333437663166356162633234316231393932
+  3233
+baz:
+  wep: !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    38653061613861636630663464666462643131386264366462376339626430633362323562643631
+    3763393165616530323133636563623463666130393639340a303138306663663036383936333539
+    61633266646336353032643030313531346263343266643331356632613635386637303662653239
+    3065333761653263380a636437366261323363393639353530396366613132393066633938643231
+    6437
+foo: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  35373635366634353336663539653364663831633839343038393065393962393465313838653937
+  3865333762343833303730656239373063643139623362320a653939373534613565663730636265
+  37653730376564613139353337656336313937306334313539663763353533643964663333356634
+  6263323964323530300a333738613136633030353239643436363736313666393632663161616234
+  6132
+tru: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  63323961623661396434656633303632386139366434623135633465386665653730643962336631
+  6362313137373933633661623933316538386330646439370a333231366262323561613739353664
+  34333366393563663931656465633266323261653762373564663732366364623236313662653931
+  3032633462336565350a383962366130383735373834653264616538643961663866643335616236
+  3033                                                                                                                                                                                                      /0.0s
 ```
